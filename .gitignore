@@ -12,6 +12,7 @@ build/
 .DS_Store
 Thumbs.db
 Toca_Downloads/
+downloads_toca/
 toca_library.json
 *.db
 *.sqlite3
