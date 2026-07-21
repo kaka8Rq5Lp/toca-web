@@ -2075,25 +2075,9 @@ function updateProgress() {
   if (mnpBf) mnpBf.style.width = ((au.currentTime / au.duration) * 100) + '%';
 }
 
-function loadTrackSource(tr) {
-  return new Promise((resolve, reject) => {
-    if (tr.data) {
-      if (window._offlineUrl) URL.revokeObjectURL(window._offlineUrl);
-      const mime = tr.filename ? mimeFromFile(tr.filename) : 'audio/mpeg';
-      const blob = new Blob([tr.data], { type: mime });
-      window._offlineUrl = URL.createObjectURL(blob);
-      resolve(window._offlineUrl);
-      return;
-    }
-    if (!tr.url) { reject('Sem URL'); return; }
-    const encoded = encodeURIComponent(tr.url);
-    resolve(`/api/stream?url=${encoded}`);
-  });
-}
-
 function playTrack(i) {
   if (i < 0 || i >= queue.length) return;
-  const tr = queue[i];
+  var tr = queue[i];
   console.log('PlayTrack - Title:', tr.title);
   if (au.src && !au.paused && cur >= 0 && cur < queue.length && cur !== i) { queue[cur]._pos = au.currentTime; }
   cur = i;
@@ -2104,54 +2088,12 @@ function playTrack(i) {
   isPlaying = true;
   cv.classList.add('playing');
   renderLib();
-  document.title = `▶ ${tr.title}`;
+  document.title = '▶ ' + tr.title;
   updateNowPlaying(tr.title, tr.uploader, tr.thumbnail);
   var _thumbSave = tr.thumbnail && tr.thumbnail.startsWith('data:') ? '' : (tr.thumbnail || '');
-  try { localStorage.setItem('toca_last_track', JSON.stringify({title: tr.title, uploader: tr.uploader, thumbnail: _thumbSave, url: tr.url, id: tr.id, idx: cur, queueLen: queue.length, currentTime: 0, shuf, rep, circ, sidebarTab, currentPlaylistView, _queueSource, source: tr.source || ''})); } catch(e) {}
+  try { localStorage.setItem('toca_last_track', JSON.stringify({title: tr.title, uploader: tr.uploader, thumbnail: _thumbSave, url: tr.url, id: tr.id, idx: cur, queueLen: queue.length, currentTime: 0, shuf: shuf, rep: rep, circ: circ, sidebarTab: sidebarTab, currentPlaylistView: currentPlaylistView, _queueSource: _queueSource, source: tr.source || ''})); } catch(e) {}
   
-  window._streamUrl = tr.url;
-  window._triedMp3Fallback = false;
-
-  loadTrackSource(tr).then(src => {
-    au.src = src;
-    updateContentView();
-    au.volume = muted ? 0 : vol;
-    au.load();
-
-    var playAttempt = function() {
-      au.play().catch(function(err) {
-        console.log('Play erro:', err);
-        if (window._streamUrl && !src.includes('stream-mp3')) {
-          var mp3src = '/api/stream-mp3?url=' + encodeURIComponent(window._streamUrl);
-          console.log('Tentando mp3 fallback');
-          au.src = mp3src;
-          au.load();
-          setTimeout(function() {
-            au.play().catch(function(err2) {
-              console.log('Play erro mp3:', err2);
-              showToast('❌ Erro ao reproduzir');
-            });
-          }, 500);
-        } else {
-          showToast('❌ Erro ao reproduzir');
-        }
-      });
-    };
-
-    if (au.readyState >= 2) { playAttempt(); }
-    else {
-      au.addEventListener('canplay', playAttempt, { once: true });
-      setTimeout(function() {
-        if (au.paused && au.src) playAttempt();
-      }, 3000);
-    }
-  }).catch(function(e) {
-    console.log('loadTrackSource erro:', e);
-    showToast('❌ Erro ao reproduzir');
-  });
-
   eqCanvas.classList.add('active');
-  
   initAudioCtx();
   if (!source) { try { connectAnalyser(); } catch(e) {} }
   cancelAnimationFrame(animId); drawEQ();
@@ -2165,6 +2107,43 @@ function playTrack(i) {
   }
   fetchLyrics(tr.title, tr.uploader);
   fetchRelated(tr.title, tr.uploader);
+
+  // Set source and play
+  if (window._offlineUrl) { URL.revokeObjectURL(window._offlineUrl); window._offlineUrl = null; }
+  updateContentView();
+  au.volume = muted ? 0 : vol;
+
+  if (tr.data) {
+    var mime = tr.filename ? mimeFromFile(tr.filename) : 'audio/mpeg';
+    var blob = new Blob([tr.data], { type: mime });
+    window._offlineUrl = URL.createObjectURL(blob);
+    au.src = window._offlineUrl;
+    au.play().catch(function(e) { console.log('offline play erro:', e); showToast('❌ Erro ao reproduzir'); });
+    return;
+  }
+
+  if (!tr.url) { showToast('❌ Erro: música sem URL'); return; }
+
+  var tryPlay = function(url) {
+    au.src = url;
+    au.play().then(function() {
+      // success
+    }).catch(function(err) {
+      console.log('Play erro com', url, err);
+      if (url.indexOf('stream-mp3') === -1) {
+        console.log('A tentar stream-mp3...');
+        tryPlay('/api/stream-mp3?url=' + encodeURIComponent(tr.url));
+      } else {
+        showToast('❌ Erro ao reproduzir');
+      }
+    });
+  };
+
+  var firstUrl = _skipAnalyser
+    ? '/api/stream-mp3?url=' + encodeURIComponent(tr.url)
+    : '/api/stream?url=' + encodeURIComponent(tr.url);
+
+  tryPlay(firstUrl);
 }
 
 // ========================================
@@ -2178,19 +2157,10 @@ au.addEventListener('loadedmetadata', updateProgress);
 au.addEventListener('durationchange', updateProgress);
 au.addEventListener('waiting', () => { mp.innerHTML = '⏳'; });
 au.addEventListener('canplay', () => { if (isPlaying) mp.innerHTML = '⏸'; });
-au.addEventListener('error', (e) => {
-  const errCode = au.error ? au.error.code : -1;
-  const errMsg = au.error ? au.error.message : 'desconhecido';
-  console.error('Audio erro:', errCode, errMsg, au.src);
+au.addEventListener('error', function(e) {
+  console.error('Audio erro:', au.error ? au.error.code : '?', au.error ? au.error.message : '', au.src);
   mp.innerHTML = '▶'; isPlaying = false;
   cv.classList.remove('playing');
-  if (errCode === 4 && window._streamUrl && !window._triedMp3Fallback) {
-    window._triedMp3Fallback = true;
-    var mp3src = '/api/stream-mp3?url=' + encodeURIComponent(window._streamUrl);
-    console.log('Audio error code 4, tentando mp3 fallback');
-    au.src = mp3src;
-    au.load();
-  }
 });
 
 setInterval(() => { if (au.src && au.duration && isFinite(au.duration)) { updateProgress(); try { const s = JSON.parse(localStorage.getItem('toca_last_track') || '{}'); s.currentTime = au.currentTime; if (s.thumbnail && s.thumbnail.startsWith('data:')) s.thumbnail = ''; localStorage.setItem('toca_last_track', JSON.stringify(s)); } catch(e) {} } }, 5000);
