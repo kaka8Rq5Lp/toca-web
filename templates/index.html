@@ -2124,37 +2124,11 @@ function playTrack(i) {
 
   if (!tr.url) { showToast('❌ Erro: música sem URL'); return; }
 
-  var tryCount = 0;
-  var tryPlay = function(url) {
-    au.src = url;
-    au.play().then(function() {
-      // success
-    }).catch(function(err) {
-      console.log('Play erro com', url, err);
-      tryCount++;
-      if (tryCount === 1) {
-        console.log('A tentar stream-mp3...');
-        tryPlay(tr.url); // Toca direto
-      } else if (tryCount === 2) {
-        console.log('A tentar URL direto...');
-        fetch('/api/stream-url?url=' + encodeURIComponent(tr.url))
-          .then(function(r) { return r.json(); })
-          .then(function(d) {
-            if (d.url) { tryPlay(d.url); }
-            else { showToast('❌ Erro ao reproduzir'); }
-          })
-          .catch(function() { showToast('❌ Erro ao reproduzir'); });
-      } else {
-        showToast('❌ Erro ao reproduzir');
-      }
-    });
-  };
-
-  var firstUrl = _skipAnalyser
-    ? '/api/stream-mp3?url=' + encodeURIComponent(tr.url)
-    : '/api/stream?url=' + encodeURIComponent(tr.url);
-
-  tryPlay(firstUrl);
+  au.src = tr.url;
+  au.play().catch(function(err) {
+    console.log('Erro ao reproduzir:', err);
+    showToast('❌ Erro ao reproduzir');
+  });
 }
 
 // ========================================
