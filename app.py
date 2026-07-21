@@ -29,10 +29,12 @@ def save_library(data):
     return data
 
 # ============================================
-# ITUNES API HELPERS
+# JAMENDO API HELPERS
 # ============================================
-def search_itunes(query, limit=10):
-    url = f"https://itunes.apple.com/search?term={quote(query)}&media=music&limit={limit}"
+def search_jamendo(query, limit=10):
+    # Jamendo API endpoint
+    # client_id pode ser omitido para pesquisas básicas ou um genérico
+    url = f"https://api.jamendo.com/v3.0/tracks/?client_id=10257797&format=jsonpretty&limit={limit}&search={quote(query)}&audioformat=mp31"
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
@@ -40,16 +42,16 @@ def search_itunes(query, limit=10):
             results = []
             for item in data.get('results', []):
                 results.append({
-                    'id': str(item.get('trackId')),
-                    'title': item.get('trackName'),
-                    'uploader': item.get('artistName'),
-                    'duration': 30, # iTunes preview is 30s
-                    'thumbnail': item.get('artworkUrl100'),
-                    'url': item.get('previewUrl')
+                    'id': item.get('id'),
+                    'title': item.get('name'),
+                    'uploader': item.get('artist_name'),
+                    'duration': item.get('duration'),
+                    'thumbnail': item.get('album_image'),
+                    'url': item.get('audio') # Esta é a música completa
                 })
             return results
     except Exception as e:
-        print(f"[ERRO search] {e}")
+        print(f"[ERRO Jamendo search] {e}")
     return []
 
 # ============================================
@@ -64,7 +66,7 @@ def api_search():
     q = request.args.get('q', '')
     if not q:
         return jsonify({'error': 'Query vazia'}), 400
-    return jsonify({'results': search_itunes(q)})
+    return jsonify({'results': search_jamendo(q)})
 
 @app.route('/api/stream')
 def api_stream():
