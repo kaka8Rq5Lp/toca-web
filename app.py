@@ -198,52 +198,8 @@ def api_stream():
     if not stream_url:
         return jsonify({'error': 'Não foi possível extrair stream'}), 404
     
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': '*/*',
-        'Referer': 'https://www.youtube.com/',
-        'Origin': 'https://www.youtube.com',
-    }
-    range_h = request.headers.get('Range', '')
-    if range_h:
-        headers['Range'] = range_h
-    
-    for attempt in range(2):
-        try:
-            resp = requests.get(stream_url, headers=headers, stream=True, timeout=30, verify=False)
-            if resp.status_code >= 400:
-                print(f"[ERRO proxy] status {resp.status_code}, tentativa {attempt+1}")
-                if attempt == 0:
-                    stream_url, info = get_stream_url(youtube_url)
-                    if not stream_url:
-                        return jsonify({'error': 'Stream não disponível'}), 404
-                    headers.pop('Range', None)
-                    continue
-                return jsonify({'error': f'Stream retornou {resp.status_code}'}), resp.status_code
-            
-            rh = {}
-            for k in ['Content-Type', 'Content-Length', 'Accept-Ranges', 'Content-Range']:
-                if k in resp.headers:
-                    rh[k] = resp.headers[k]
-            ct = rh.get('Content-Type', '')
-            if not ct or 'audio' not in ct:
-                rh['Content-Type'] = 'audio/mpeg'
-            sc = resp.status_code if resp.status_code in [200, 206] else 200
-            
-            def gen():
-                for chunk in resp.iter_content(chunk_size=65536):
-                    if chunk: yield chunk
-            
-            return Response(gen(), status=sc, headers=rh)
-        except Exception as e:
-            print(f"[ERRO proxy] tentativa {attempt+1}: {e}")
-            if attempt == 0:
-                stream_url, info = get_stream_url(youtube_url)
-                if not stream_url:
-                    return jsonify({'error': 'Stream não disponível'}), 404
-                headers.pop('Range', None)
-                continue
-            return jsonify({'error': str(e)}), 500
+    # Retorna o URL diretamente para o browser tratar
+    return jsonify({'url': stream_url, 'info': info})
 
 @app.route('/api/stream-url')
 def api_stream_url():
@@ -261,65 +217,12 @@ def api_stream_mp3():
     if not youtube_url:
         return jsonify({'error': 'URL vazio'}), 400
 
-    opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'extract_flat': False,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web'],
-                'skip': ['webpage', 'hls'],
-            }
-        },
-        'socket_timeout': 30,
-    }
-
-    try:
-        with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(youtube_url, download=False)
-            if not info:
-                return jsonify({'error': 'Não foi possível extrair stream'}), 404
-            stream_url = info.get('url')
-            if not stream_url:
-                formats = info.get('formats') or []
-                for f in formats:
-                    if f.get('url'):
-                        stream_url = f['url']
-                        break
-            if not stream_url:
-                return jsonify({'error': 'Sem URL de áudio'}), 404
-    except Exception as e:
-        print(f"[FALHA stream-mp3] {e}")
-        return jsonify({'error': str(e)}), 500
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': '*/*',
-        'Referer': 'https://www.youtube.com/',
-        'Origin': 'https://www.youtube.com',
-    }
-    range_h = request.headers.get('Range', '')
-    if range_h:
-        headers['Range'] = range_h
-
-    try:
-        resp = requests.get(stream_url, headers=headers, stream=True, timeout=30)
-        rh = {'Content-Type': 'audio/mpeg'}
-        for k in ['Content-Length', 'Accept-Ranges', 'Content-Range']:
-            if k in resp.headers:
-                rh[k] = resp.headers[k]
-        sc = resp.status_code if resp.status_code in [200, 206] else 200
-
-        def gen():
-            for chunk in resp.iter_content(chunk_size=65536):
-                if chunk: yield chunk
-
-        return Response(gen(), status=sc, headers=rh)
-    except Exception as e:
-        print(f"[ERRO proxy mp3] {e}")
-        return jsonify({'error': str(e)}), 500
+    stream_url, info = get_stream_url(youtube_url)
+    if not stream_url:
+        return jsonify({'error': 'Não foi possível extrair stream'}), 404
+    
+    # Retorna o URL diretamente para o browser tratar
+    return jsonify({'url': stream_url, 'info': info})
 
 # ============================================
 # LIBRARY & PLAYLISTS
