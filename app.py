@@ -86,42 +86,45 @@ def safe_filename(title):
 
 def get_stream_url(youtube_url):
     """Extrai URL de stream direto do YouTube."""
-    opts = {
-        'format': 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'extract_flat': False,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web'],
-                'skip': ['webpage', 'hls'],
-            }
+    configs = [
+        {
+            'format': 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best',
+            'quiet': True, 'no_warnings': True, 'skip_download': True,
+            'extract_flat': False,
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'socket_timeout': 30,
         },
-        'socket_timeout': 30,
-    }
+        {
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'quiet': True, 'no_warnings': True, 'skip_download': True,
+            'extract_flat': False,
+            'socket_timeout': 30,
+        },
+    ]
     
-    try:
-        with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(youtube_url, download=False)
-            if not info:
-                return None, None
-            
-            url = info.get('url')
-            if url:
-                return url, info
-            
-            formats = info.get('formats') or []
-            audio = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url')]
-            if audio:
-                audio.sort(key=lambda f: f.get('abr', 0) or 0, reverse=True)
-                return audio[0]['url'], info
-            
-            for f in formats:
-                if f.get('url'):
-                    return f['url'], info
-    except Exception as e:
-        print(f"[FALHA stream] {e}")
+    for opts in configs:
+        try:
+            with YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(youtube_url, download=False)
+                if not info:
+                    continue
+                
+                url = info.get('url')
+                if url:
+                    return url, info
+                
+                formats = info.get('formats') or []
+                audio = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url')]
+                if audio:
+                    audio.sort(key=lambda f: f.get('abr', 0) or 0, reverse=True)
+                    return audio[0]['url'], info
+                
+                for f in formats:
+                    if f.get('url'):
+                        return f['url'], info
+        except Exception as e:
+            print(f"[FALHA stream] config: {e}")
+            continue
     
     return None, None
 
@@ -178,7 +181,6 @@ def api_stream():
     if not stream_url:
         return jsonify({'error': 'Não foi possível extrair stream'}), 404
     
-    # Proxy the stream to avoid CORS/format issues
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': '*/*',
@@ -189,25 +191,42 @@ def api_stream():
     if range_h:
         headers['Range'] = range_h
     
-    try:
-        resp = requests.get(stream_url, headers=headers, stream=True, timeout=30)
-        rh = {}
-        for k in ['Content-Type', 'Content-Length', 'Accept-Ranges', 'Content-Range']:
-            if k in resp.headers:
-                rh[k] = resp.headers[k]
-        ct = rh.get('Content-Type', '')
-        if not ct or 'audio' not in ct:
-            rh['Content-Type'] = 'audio/mpeg'
-        sc = resp.status_code if resp.status_code in [200, 206] else 200
-        
-        def gen():
-            for chunk in resp.iter_content(chunk_size=65536):
-                if chunk: yield chunk
-        
-        return Response(gen(), status=sc, headers=rh)
-    except Exception as e:
-        print(f"[ERRO proxy] {e}")
-        return jsonify({'error': str(e)}), 500
+    for attempt in range(2):
+        try:
+            resp = requests.get(stream_url, headers=headers, stream=True, timeout=30, verify=False)
+            if resp.status_code >= 400:
+                print(f"[ERRO proxy] status {resp.status_code}, tentativa {attempt+1}")
+                if attempt == 0:
+                    stream_url, info = get_stream_url(youtube_url)
+                    if not stream_url:
+                        return jsonify({'error': 'Stream não disponível'}), 404
+                    headers.pop('Range', None)
+                    continue
+                return jsonify({'error': f'Stream retornou {resp.status_code}'}), resp.status_code
+            
+            rh = {}
+            for k in ['Content-Type', 'Content-Length', 'Accept-Ranges', 'Content-Range']:
+                if k in resp.headers:
+                    rh[k] = resp.headers[k]
+            ct = rh.get('Content-Type', '')
+            if not ct or 'audio' not in ct:
+                rh['Content-Type'] = 'audio/mpeg'
+            sc = resp.status_code if resp.status_code in [200, 206] else 200
+            
+            def gen():
+                for chunk in resp.iter_content(chunk_size=65536):
+                    if chunk: yield chunk
+            
+            return Response(gen(), status=sc, headers=rh)
+        except Exception as e:
+            print(f"[ERRO proxy] tentativa {attempt+1}: {e}")
+            if attempt == 0:
+                stream_url, info = get_stream_url(youtube_url)
+                if not stream_url:
+                    return jsonify({'error': 'Stream não disponível'}), 404
+                headers.pop('Range', None)
+                continue
+            return jsonify({'error': str(e)}), 500
 
 @app.route('/api/stream-mp3')
 def api_stream_mp3():
