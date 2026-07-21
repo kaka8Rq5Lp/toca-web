@@ -88,16 +88,22 @@ def get_stream_url(youtube_url):
     """Extrai URL de stream direto do YouTube."""
     configs = [
         {
-            'format': 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio[ext=webm]/bestaudio/best',
             'quiet': True, 'no_warnings': True, 'skip_download': True,
             'extract_flat': False,
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
             'socket_timeout': 30,
         },
         {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'worstaudio/worst',
             'quiet': True, 'no_warnings': True, 'skip_download': True,
             'extract_flat': False,
+            'socket_timeout': 30,
+        },
+        {
+            'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio[ext=webm]/bestaudio/best',
+            'quiet': True, 'no_warnings': True, 'skip_download': True,
+            'extract_flat': False,
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
             'socket_timeout': 30,
         },
     ]
@@ -227,6 +233,16 @@ def api_stream():
                 headers.pop('Range', None)
                 continue
             return jsonify({'error': str(e)}), 500
+
+@app.route('/api/stream-url')
+def api_stream_url():
+    youtube_url = request.args.get('url', '')
+    if not youtube_url:
+        return jsonify({'error': 'URL vazio'}), 400
+    stream_url, _ = get_stream_url(youtube_url)
+    if not stream_url:
+        return jsonify({'error': 'Não foi possível extrair stream'}), 404
+    return jsonify({'url': stream_url})
 
 @app.route('/api/stream-mp3')
 def api_stream_mp3():

@@ -2124,15 +2124,26 @@ function playTrack(i) {
 
   if (!tr.url) { showToast('❌ Erro: música sem URL'); return; }
 
+  var tryCount = 0;
   var tryPlay = function(url) {
     au.src = url;
     au.play().then(function() {
       // success
     }).catch(function(err) {
       console.log('Play erro com', url, err);
-      if (url.indexOf('stream-mp3') === -1) {
+      tryCount++;
+      if (tryCount === 1) {
         console.log('A tentar stream-mp3...');
         tryPlay('/api/stream-mp3?url=' + encodeURIComponent(tr.url));
+      } else if (tryCount === 2) {
+        console.log('A tentar URL direto...');
+        fetch('/api/stream-url?url=' + encodeURIComponent(tr.url))
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d.url) { tryPlay(d.url); }
+            else { showToast('❌ Erro ao reproduzir'); }
+          })
+          .catch(function() { showToast('❌ Erro ao reproduzir'); });
       } else {
         showToast('❌ Erro ao reproduzir');
       }
