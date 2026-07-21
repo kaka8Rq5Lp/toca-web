@@ -285,12 +285,12 @@ body{padding-bottom:68px;padding-bottom:calc(68px + env(safe-area-inset-bottom,0
 @keyframes neonSweep{0%{transform:translateX(-50%)}100%{transform:translateX(50%)}}
 .toggle-tab::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#ff6b35,#00f0ff,#ff6b35,transparent);box-shadow:0 0 20px rgba(255,107,53,.6),0 0 40px rgba(0,240,255,.3)}
 .toggle-tab:active{background:linear-gradient(135deg,rgba(255,107,53,.2),rgba(0,240,255,.12),rgba(255,107,53,.2));box-shadow:0 -4px 40px rgba(255,107,53,.3),0 0 60px rgba(0,240,255,.15)}
-.main{flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.main{flex-direction:column;overflow-y:scroll;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
 .content{padding:12px 12px 100px;padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
 .results{grid-template-columns:1fr}
-.player{height:68px;height:calc(68px + env(safe-area-inset-bottom,0px));padding:0 10px;padding-bottom:env(safe-area-inset-bottom,0px);grid-template-columns:50px 1fr 50px;left:0;right:0;width:100%}
+.player{height:68px;height:calc(68px + env(safe-area-inset-bottom,0px));padding:0 10px;padding-bottom:env(safe-area-inset-bottom,0px);grid-template-columns:52px 1fr;left:0;right:0;width:100%}
 .player-left{width:auto;gap:8px;cursor:pointer}
-.player-info{display:flex;flex-direction:column;min-width:0;flex:1;overflow:hidden}
+.player-info{display:none}
 .song-title{font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .song-artist{font-size:10px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .player-controls{max-width:100%;gap:2px 0}
@@ -979,7 +979,12 @@ function initDoubleTap(el, idx, playFn) {
 // ========================================
 // VISUALIZADOR / EQUALIZADOR
 // ========================================
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+const _skipAnalyser = isIOS || isSafari;
+
 function initAudioCtx() {
+  if (_skipAnalyser) return;
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
@@ -990,9 +995,10 @@ function initAudioCtx() {
 }
 
 function connectAnalyser() {
+  if (_skipAnalyser) return;
   if (!audioCtx) initAudioCtx();
   try {
-    if (source) source.disconnect();
+    if (source) { return; }
     source = audioCtx.createMediaElementSource(au);
     source.connect(analyser);
     analyser.connect(audioCtx.destination);
@@ -2022,8 +2028,10 @@ async function fetchRelated(title, artist) {
 function updateContentView() {
   const hasQuery = $('sq').value.trim().length > 0;
   const isLibraryMode = !hasQuery && (sidebarTab === 'biblioteca' || sidebarTab === 'playlists' || sidebarTab === 'offline' || sidebarTab === 'favorites');
-  $('sbRight').classList.remove('oculto');
-  $('sbRight').style.display = '';
+  if (window.innerWidth > 768) {
+    $('sbRight').classList.remove('oculto');
+    $('sbRight').style.display = '';
+  }
   npBox.classList.remove('mode-search', 'mode-library');
   npBox.classList.add(isLibraryMode ? 'mode-library' : 'mode-search');
   if (hasQuery) {
@@ -2092,7 +2100,9 @@ function playTrack(i) {
     window._offlineUrl = URL.createObjectURL(blob);
     au.src = window._offlineUrl;
   } else {
-    au.src = `/api/stream?url=${encodeURIComponent(tr.url)}`;
+    au.src = _skipAnalyser
+      ? `/api/stream-mp3?url=${encodeURIComponent(tr.url)}`
+      : `/api/stream?url=${encodeURIComponent(tr.url)}`;
     window._streamUrl = tr.url;
   }
   updateContentView();
@@ -2261,17 +2271,17 @@ window.addEventListener('pageshow', e => {
 // SELEÇÃO DE GÉNEROS (PRIMEIRO ACESSO)
 // ========================================
 const GENRES = [
-  { id: 'rap',       name: 'Rap',        emoji: '🎤', queries: ['rap song 2024 audio', 'melhores musicas rap'] },
-  { id: 'pop',       name: 'Pop',        emoji: '🎵', queries: ['pop music 2024 audio', 'top pop songs playlist'] },
-  { id: 'kizomba',   name: 'Kizomba',    emoji: '🔥', queries: ['kizomba music 2024 audio', 'kizomba songs playlist'] },
-  { id: 'rock',      name: 'Rock',       emoji: '🎸', queries: ['rock song classics audio', 'rock hits 2024 audio'] },
-  { id: 'afrohouse', name: 'Afro-house', emoji: '💃', queries: ['afro house music 2024 audio', 'afro house songs playlist'] },
-  { id: 'funk',      name: 'Funk',       emoji: '🕺', queries: ['funk brasileiro musicas', 'funk carioca songs audio'] },
-  { id: 'reggaeton', name: 'Reggaeton',  emoji: '💃', queries: ['reggaeton songs 2024 audio', 'reggaeton music playlist'] },
-  { id: 'soul',      name: 'Soul',       emoji: '💜', queries: ['soul music songs audio', 'soul hits 2024 audio'] },
-  { id: 'jazz',      name: 'Jazz',       emoji: '🎷', queries: ['jazz music songs audio', 'jazz hits 2024 audio'] },
-  { id: 'blues',     name: 'Blues',      emoji: '🎵', queries: ['blues music songs audio', 'blues hits 2024 audio'] },
-  { id: 'rumba',     name: 'Rumba',      emoji: '💃', queries: ['rumba musicas audio', 'rumba africana songs playlist'] },
+  { id: 'rap',       name: 'Rap',        emoji: '🎤', queries: ['rap music audio', 'rap song audio'] },
+  { id: 'pop',       name: 'Pop',        emoji: '🎵', queries: ['pop music audio', 'pop song audio'] },
+  { id: 'kizomba',   name: 'Kizomba',    emoji: '🔥', queries: ['kizomba music audio', 'kizomba song audio'] },
+  { id: 'rock',      name: 'Rock',       emoji: '🎸', queries: ['rock music audio', 'rock song audio'] },
+  { id: 'afrohouse', name: 'Afro-house', emoji: '💃', queries: ['afro house music audio', 'afro beat song audio'] },
+  { id: 'funk',      name: 'Funk',       emoji: '🕺', queries: ['funk music audio', 'funk song audio'] },
+  { id: 'reggaeton', name: 'Reggaeton',  emoji: '💃', queries: ['reggaeton music audio', 'reggaeton song audio'] },
+  { id: 'soul',      name: 'Soul',       emoji: '💜', queries: ['soul music audio', 'soul song audio'] },
+  { id: 'jazz',      name: 'Jazz',       emoji: '🎷', queries: ['jazz music audio', 'jazz song audio'] },
+  { id: 'blues',     name: 'Blues',      emoji: '🎵', queries: ['blues music audio', 'blues song audio'] },
+  { id: 'rumba',     name: 'Rumba',      emoji: '💃', queries: ['rumba music audio', 'rumba song audio'] },
 ];
 let selectedGenres = [];
 

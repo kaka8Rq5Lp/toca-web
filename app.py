@@ -216,7 +216,7 @@ def api_stream_mp3():
         return jsonify({'error': 'URL vazio'}), 400
 
     opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio/best',
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
@@ -227,11 +227,6 @@ def api_stream_mp3():
                 'skip': ['webpage', 'hls'],
             }
         },
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '128',
-        }],
         'socket_timeout': 30,
     }
 
