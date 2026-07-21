@@ -1288,7 +1288,7 @@ function loadLib() {
                 window._offlineUrl = URL.createObjectURL(blob);
                 au.src = window._offlineUrl;
               } else if (tr && tr.url) {
-                au.src = `/api/stream?url=${encodeURIComponent(tr.url)}`;
+                au.src = tr.url; // URL do Jamendo já é direto
                 window._streamUrl = tr.url;
               }
             }
@@ -2010,7 +2010,7 @@ async function fetchRelated(title, artist) {
   const container = $('lista-relacionados');
   container.innerHTML = '<div class="related-loading">A carregar...</div>';
   try {
-    const r = await fetch(`/api/related?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist || '')}`);
+    // Removido chamadas a /api/related pois API Jamendo não suporta
     const d = await r.json();
     _relatedResults = d.results || [];
     container.innerHTML = '';
@@ -2134,7 +2134,7 @@ function playTrack(i) {
       tryCount++;
       if (tryCount === 1) {
         console.log('A tentar stream-mp3...');
-        tryPlay('/api/stream-mp3?url=' + encodeURIComponent(tr.url));
+        tryPlay(tr.url); // Toca direto
       } else if (tryCount === 2) {
         console.log('A tentar URL direto...');
         fetch('/api/stream-url?url=' + encodeURIComponent(tr.url))
