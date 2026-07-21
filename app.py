@@ -81,15 +81,29 @@ def save_library(data):
 # ============================================
 # YT-DLP HELPERS
 # ============================================
-def get_yt_opts(base_opts):
-    """Adiciona cookies.txt se disponível às opções do yt-dlp."""
-    opts = base_opts.copy()
+# ============================================
+# YT-DLP HELPERS - CONFIGURAÇÃO ROBUSTA
+# ============================================
+def get_yt_opts(extra_opts=None):
+    """Retorna opções robustas para o yt-dlp."""
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'socket_timeout': 30,
+    }
+    
+    # Adicionar cookies se existirem
     cookie_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cookies.txt')
     if os.path.exists(cookie_path):
         opts['cookiefile'] = cookie_path
-        print(f"[OK] Cookies carregados de: {cookie_path}")
+        print(f"[OK] Usando cookies de: {cookie_path}")
     else:
-        print(f"[AVISO] Cookies não encontrados em: {cookie_path}")
+        print(f"[AVISO] cookies.txt não encontrado em {cookie_path}. Bloqueio é provável.")
+
+    if extra_opts:
+        opts.update(extra_opts)
     return opts
 
 def safe_filename(title):
@@ -154,7 +168,7 @@ def search_youtube(query, max_results=10):
         'default_search': 'ytsearch',
     }
     try:
-        with YoutubeDL(opts) as ydl:
+        with YoutubeDL(get_yt_opts(opts)) as ydl:
             search_query = f"ytsearch{max_results}:{query}"
             result = ydl.extract_info(search_query, download=False)
             if result and 'entries' in result:
