@@ -1,4 +1,4 @@
-const CACHE = 'toca-v2';
+const CACHE = 'toca-v3';
 const ASSETS = [
   '/static/manifest.json',
   '/static/toca.ico'

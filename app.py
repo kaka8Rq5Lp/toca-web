@@ -29,29 +29,27 @@ def save_library(data):
     return data
 
 # ============================================
-# JAMENDO API HELPERS
+# DEEZER API HELPERS
 # ============================================
-def search_jamendo(query, limit=10):
-    # Jamendo API endpoint
-    # client_id pode ser omitido para pesquisas básicas ou um genérico
-    url = f"https://api.jamendo.com/v3.0/tracks/?client_id=10257797&format=jsonpretty&limit={limit}&search={quote(query)}&audioformat=mp31"
+def search_deezer(query, limit=10):
+    url = f"https://api.deezer.com/search?q={quote(query)}&limit={limit}"
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
             results = []
-            for item in data.get('results', []):
+            for item in data.get('data', []):
                 results.append({
                     'id': item.get('id'),
-                    'title': item.get('name'),
-                    'uploader': item.get('artist_name'),
+                    'title': item.get('title'),
+                    'uploader': item.get('artist', {}).get('name', 'Desconhecido'),
                     'duration': item.get('duration'),
-                    'thumbnail': item.get('album_image'),
-                    'url': item.get('audio') # Esta é a música completa
+                    'thumbnail': item.get('album', {}).get('cover_medium', ''),
+                    'url': item.get('preview', '')
                 })
             return results
     except Exception as e:
-        print(f"[ERRO Jamendo search] {e}")
+        print(f"[ERRO Deezer search] {e}")
     return []
 
 # ============================================
@@ -66,7 +64,7 @@ def api_search():
     q = request.args.get('q', '')
     if not q:
         return jsonify({'error': 'Query vazia'}), 400
-    return jsonify({'results': search_jamendo(q)})
+    return jsonify({'results': search_deezer(q)})
 
 @app.route('/api/stream')
 def api_stream():

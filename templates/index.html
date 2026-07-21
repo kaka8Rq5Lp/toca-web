@@ -1380,7 +1380,6 @@ function renderLib() {
     $('plCount').textContent = qi.textContent;
   }
   tl.innerHTML = list.map((tr, i) => {
-    console.log('Renderizando:', tr.title, 'Thumbnail:', tr.thumbnail ? tr.thumbnail.substring(0, 30) + '...' : 'NONE');
     const current = queue[cur];
     const isCur = current && list[i] && list[i].id === current.id;
     const isLocal = tr.source === 'local' || tr.source === 'offline';
@@ -1541,7 +1540,7 @@ const _AUDIO_EXTS = ['.mp3','.flac','.wav','.m4a','.ogg'];
 const _COVER_NAMES = ['cover.jpg','cover.png','folder.jpg','folder.png','album.jpg','album.png'];
 
 function handleImportFiles(files) {
-  pendingFolderCover = null;
+let pendingFolderCover = null;
   var all = Array.from(files);
   var covers = all.filter(f => _COVER_NAMES.indexOf(f.name.toLowerCase()) !== -1);
   if (covers.length) pendingFolderCover = covers[0];
@@ -1788,57 +1787,32 @@ function startDownload(track) {
   const title = track.title || 'Música';
   showToast(`⬇️ A guardar "${title}"...`);
 
-  fetch(`/api/download?url=${encodeURIComponent(track.url)}`)
-    .then(r => r.json())
-    .then(data => {
-      if (!data.dl_id) { throw new Error('Sem ID de download'); }
-      const dlId = data.dl_id;
-      activeDownloads[dlId] = { track, status: 'downloading' };
-
-      const pollInterval = setInterval(() => {
-        fetch(`/api/download/progress/${dlId}`)
-          .then(r => r.json())
-          .then(prog => {
-            if (prog.status === 'done') {
-              clearInterval(pollInterval);
-              delete activeDownloads[dlId];
-
-              fetch('/api/downloads').then(r => r.json()).then(d => {
-                const files = d.files || [];
-                const expectedTitle = (track.title || '').replace(/[<>:"/\\|?*]/g, '_');
-                const filename = files.find(f => f.startsWith(expectedTitle)) || files[0];
-                if (filename) {
-                  fetch('/downloads/' + encodeURIComponent(filename))
-                    .then(r => r.arrayBuffer())
-                    .then(buf => {
-                      const id = 'offline_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-                      const cover = extractCoverFromBuffer(buf);
-                      const thumbFromId3 = cover ? coverToDataUrl(cover) : '';
-                        const offTrack = {
-                        id, title: track.title || filename.replace(/\.mp3$/i, ''),
-                        uploader: track.uploader || 'Desconhecido',
-                        duration: track.duration || 0,
-                        thumbnail: thumbFromId3 || '',
-                        url: track.url || '',
-                        source: 'offline', data: buf, added: Date.now(),
-                        filename: filename
-                      };
-                      addOfflineTrack(offTrack).then(() => {
-                        offlineLib.push(offTrack);
-                        if (sidebarTab === 'offline') renderLib();
-                        showToast(`✅ "${title}" guardada offline`);
-                      }).catch(e => console.error('Erro ao guardar offline:', e));
-                    })
-                    .catch(e => console.error('Erro ao buscar ficheiro:', e));
-                }
-              });
-            } else if (prog.status === 'error') {
-              clearInterval(pollInterval);
-              delete activeDownloads[dlId];
-              showToast(`❌ Erro ao guardar "${title}"`);
-            }
-          });
-      }, 2000);
+  fetch(track.url)
+    .then(r => {
+      if (!r.ok) throw new Error('Falha ao descarregar');
+      return r.arrayBuffer();
+    })
+    .then(buf => {
+      const id = 'offline_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const cover = extractCoverFromBuffer(buf);
+      const thumbFromId3 = cover ? coverToDataUrl(cover) : '';
+      const offTrack = {
+        id, title: track.title || title,
+        uploader: track.uploader || 'Desconhecido',
+        duration: track.duration || 0,
+        thumbnail: thumbFromId3 || track.thumbnail || '',
+        url: track.url || '',
+        source: 'offline', data: buf, added: Date.now(),
+        filename: (track.title || 'musica').replace(/[<>:"/\\|?*]/g, '_') + '.mp3'
+      };
+      addOfflineTrack(offTrack).then(() => {
+        offlineLib.push(offTrack);
+        if (sidebarTab === 'offline') renderLib();
+        showToast(`✅ "${title}" guardada offline`);
+      }).catch(e => {
+        console.error('Erro ao guardar offline:', e);
+        showToast(`❌ Erro ao guardar "${title}"`);
+      });
     })
     .catch(err => {
       console.error('Download erro:', err);
@@ -1933,9 +1907,7 @@ function offlineCover() {
 }
 function fallbackCover() { return '/static/toca.png'; }
 function updateNowPlaying(title, artist, thumb) {
-  console.log('DEBUG: updateNowPlaying - title:', title, 'thumb:', thumb);
   var _url = (thumb && thumb !== 'undefined' && thumb !== '') ? thumb : fallbackCover();
-  console.log('DEBUG: Resolved _url:', _url);
   ci.src = '';
   ci.src = _url;
   ci.style.display = 'block';
@@ -2008,22 +1980,8 @@ function playRelated(i) {
 }
 async function fetchRelated(title, artist) {
   const container = $('lista-relacionados');
-  container.innerHTML = '<div class="related-loading">A carregar...</div>';
-  try {
-    // Removido chamadas a /api/related pois API Jamendo não suporta
-    const d = await r.json();
-    _relatedResults = d.results || [];
-    container.innerHTML = '';
-    _relatedResults.forEach((tr, idx) => {
-      const el = document.createElement('div');
-      el.className = 'related-track';
-      el.innerHTML = `<img src="${tr.thumbnail}" alt="" loading="lazy"><div class="rt-info"><div class="rt-title">${esc(tr.title)}</div><div class="rt-artist">${esc(tr.uploader)}</div></div>`;
-      el.onclick = () => playRelated(idx);
-      container.appendChild(el);
-    });
-  } catch(e) {
-    container.innerHTML = '<div class="related-error">Erro ao carregar</div>';
-  }
+  container.innerHTML = '';
+  _relatedResults = [];
 }
 function updateContentView() {
   const hasQuery = $('sq').value.trim().length > 0;
@@ -2078,7 +2036,6 @@ function updateProgress() {
 function playTrack(i) {
   if (i < 0 || i >= queue.length) return;
   var tr = queue[i];
-  console.log('PlayTrack - Title:', tr.title);
   if (au.src && !au.paused && cur >= 0 && cur < queue.length && cur !== i) { queue[cur]._pos = au.currentTime; }
   cur = i;
   st.textContent = tr.title || 'A carregar...';
@@ -2162,7 +2119,6 @@ async function search() {
   try {
     const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
     const d = await r.json();
-    console.log('API Search Response:', d);
     window._res = d.results || [];
     renderResults(window._res);
   } catch (e) { console.error('Search erro:', e); es.innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Erro na procura</p></div>'; }
