@@ -81,6 +81,13 @@ def save_library(data):
 # ============================================
 # YT-DLP HELPERS
 # ============================================
+def get_yt_opts(base_opts):
+    """Adiciona cookies.txt se disponível às opções do yt-dlp."""
+    opts = base_opts.copy()
+    if os.path.exists('cookies.txt'):
+        opts['cookiefile'] = 'cookies.txt'
+    return opts
+
 def safe_filename(title):
     return re.sub(r'[\\/*?:"<>|]', '_', title)[:120]
 
@@ -110,7 +117,7 @@ def get_stream_url(youtube_url):
     
     for opts in configs:
         try:
-            with YoutubeDL(opts) as ydl:
+            with YoutubeDL(get_yt_opts(opts)) as ydl:
                 info = ydl.extract_info(youtube_url, download=False)
                 if not info:
                     continue
@@ -503,7 +510,7 @@ def api_download():
                 'no_warnings': True,
                 'progress_hooks': [progress_hook],
             }
-            with YoutubeDL(opts) as ydl:
+            with YoutubeDL(get_yt_opts(opts)) as ydl:
                 ydl.download([youtube_url])
             download_progress[dl_id]['status'] = 'done'
         except Exception as e:
