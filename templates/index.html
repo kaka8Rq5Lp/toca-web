@@ -1288,7 +1288,7 @@ function loadLib() {
                 window._offlineUrl = URL.createObjectURL(blob);
                 au.src = window._offlineUrl;
               } else if (tr && tr.url) {
-                au.src = tr.url; // URL do Jamendo já é direto
+                au.src = tr.url;
                 window._streamUrl = tr.url;
               }
             }
@@ -2162,6 +2162,7 @@ async function search() {
   try {
     const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
     const d = await r.json();
+    console.log('API Search Response:', d);
     window._res = d.results || [];
     renderResults(window._res);
   } catch (e) { console.error('Search erro:', e); es.innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Erro na procura</p></div>'; }
@@ -2259,17 +2260,17 @@ window.addEventListener('pageshow', e => {
 // SELEÇÃO DE GÉNEROS (PRIMEIRO ACESSO)
 // ========================================
 const GENRES = [
-  { id: 'rap',       name: 'Rap',        emoji: '🎤', queries: ['rap music audio', 'rap song audio'] },
-  { id: 'pop',       name: 'Pop',        emoji: '🎵', queries: ['pop music audio', 'pop song audio'] },
-  { id: 'kizomba',   name: 'Kizomba',    emoji: '🔥', queries: ['kizomba music audio', 'kizomba song audio'] },
-  { id: 'rock',      name: 'Rock',       emoji: '🎸', queries: ['rock music audio', 'rock song audio'] },
-  { id: 'afrohouse', name: 'Afro-house', emoji: '💃', queries: ['afro house music audio', 'afro beat song audio'] },
-  { id: 'funk',      name: 'Funk',       emoji: '🕺', queries: ['funk music audio', 'funk song audio'] },
-  { id: 'reggaeton', name: 'Reggaeton',  emoji: '💃', queries: ['reggaeton music audio', 'reggaeton song audio'] },
-  { id: 'soul',      name: 'Soul',       emoji: '💜', queries: ['soul music audio', 'soul song audio'] },
-  { id: 'jazz',      name: 'Jazz',       emoji: '🎷', queries: ['jazz music audio', 'jazz song audio'] },
-  { id: 'blues',     name: 'Blues',      emoji: '🎵', queries: ['blues music audio', 'blues song audio'] },
-  { id: 'rumba',     name: 'Rumba',      emoji: '💃', queries: ['rumba music audio', 'rumba song audio'] },
+  { id: 'rap',       name: 'Rap',        emoji: '🎤', queries: ['rap', 'hip hop'] },
+  { id: 'pop',       name: 'Pop',        emoji: '🎵', queries: ['pop', 'top hits'] },
+  { id: 'kizomba',   name: 'Kizomba',    emoji: '🔥', queries: ['kizomba', 'kizomba 2024'] },
+  { id: 'rock',      name: 'Rock',       emoji: '🎸', queries: ['rock', 'rock classics'] },
+  { id: 'afrohouse', name: 'Afro-house', emoji: '💃', queries: ['afro house', 'afrobeat'] },
+  { id: 'funk',      name: 'Funk',       emoji: '🕺', queries: ['funk', 'funk brasileiro'] },
+  { id: 'reggaeton', name: 'Reggaeton',  emoji: '💃', queries: ['reggaeton', 'reggaeton 2024'] },
+  { id: 'soul',      name: 'Soul',       emoji: '💜', queries: ['soul', 'neo soul'] },
+  { id: 'jazz',      name: 'Jazz',       emoji: '🎷', queries: ['jazz', 'jazz classics'] },
+  { id: 'blues',     name: 'Blues',      emoji: '🎵', queries: ['blues', 'blues rock'] },
+  { id: 'rumba',     name: 'Rumba',      emoji: '💃', queries: ['rumba', 'flamenco'] },
 ];
 let selectedGenres = [];
 
