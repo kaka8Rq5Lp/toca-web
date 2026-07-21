@@ -84,8 +84,12 @@ def save_library(data):
 def get_yt_opts(base_opts):
     """Adiciona cookies.txt se disponível às opções do yt-dlp."""
     opts = base_opts.copy()
-    if os.path.exists('cookies.txt'):
-        opts['cookiefile'] = 'cookies.txt'
+    cookie_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cookies.txt')
+    if os.path.exists(cookie_path):
+        opts['cookiefile'] = cookie_path
+        print(f"[OK] Cookies carregados de: {cookie_path}")
+    else:
+        print(f"[AVISO] Cookies não encontrados em: {cookie_path}")
     return opts
 
 def safe_filename(title):
